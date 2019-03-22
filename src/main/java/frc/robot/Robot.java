@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------------*/
-/* Copyright (c) 2017-2018 FIRST. All Rights Reserved.                        */
+/* Copyright (c) 2017-20318 FIRST. All Rights Reserved.                        */
 /* Open Source Software - may be modified and shared by FRC teams. The code   */
 /* must be accompanied by the FIRST BSD license file in the root directory of */
 /* the project.                                                               */
@@ -10,10 +10,13 @@ package frc.robot;
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 import com.ctre.phoenix.motorcontrol.can.TalonSRX;
+import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
 import edu.wpi.first.wpilibj.DoubleSolenoid;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.PWM;
+import edu.wpi.first.wpilibj.Servo;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.VictorSP;
 import edu.wpi.first.wpilibj.DoubleSolenoid.Value;
@@ -26,23 +29,25 @@ import edu.wpi.first.wpilibj.DoubleSolenoid.Value;
  * project.
  */
 public class Robot extends TimedRobot {
-  private static int MODE_UP_BUTTON    = 6,
-                     MODE_DOWN_BUTTON  = 7,
-                     ID_UP_BUTTON      = 8,
-                     ID_DOWN_BUTTON    = 9,
-                     PARAM_UP_BUTTON   = 10,
-                     PARAM_DOWN_BUTTON = 11,
+  private static int MODE_UP_BUTTON    = 1,
+                     MODE_DOWN_BUTTON  = 5,
+                     ID_UP_BUTTON      = 2,
+                     ID_DOWN_BUTTON    = 6,
+                     PARAM_UP_BUTTON   = 3,
+                     PARAM_DOWN_BUTTON = 7,
                      INITIALIZE_BUTTON = 1,
                      GO_BUTTON = 6;
 
-  private static int NUM_MODES = 4;
+  private static int NUM_MODES = 6;
   private int m_mode = 0, m_id = 0, m_param = 0;
   private boolean m_initialized = false, m_buttonPressed = false;
   private VictorSP m_pwm; // Kind of hacky, but this will work with servos connected to the rio too.
   private TalonSRX m_talon;
+  private CANSparkMax m_spark;
   private DoubleSolenoid m_solenoid;
+  private Servo m_servo;
 
-  private Joystick throttle = new Joystick(1), joystick = new Joystick(0);
+  private Joystick throttle = new Joystick(2), joystick = new Joystick(0);
 
   /**
    * This function is run when the robot is first started up and should be
@@ -98,6 +103,12 @@ public class Robot extends TimedRobot {
       m_solenoid.set(Value.kOff);
       m_solenoid.close();
       m_solenoid = null;
+    } else if (m_mode == 4) {
+      m_servo.close();
+      m_servo = null;
+    } else if (m_mode == 5) {
+      m_spark.close();
+      m_spark = null;
     }
   }
 
@@ -168,6 +179,10 @@ public class Robot extends TimedRobot {
           m_talon.setInverted(m_param % 4 > 1);
         } else if (m_mode == 2) {
           m_solenoid = new DoubleSolenoid(m_id, m_param);
+        } else if (m_mode == 4) {
+          m_servo = new Servo(m_id);
+        } else if (m_mode == 5) {
+          m_spark = new CANSparkMax(m_id, MotorType.kBrushless);
         }
         m_initialized = true;
       }
@@ -182,7 +197,7 @@ public class Robot extends TimedRobot {
       System.out.print("[WAITING] ");
     }
 
-    double speed = -joystick.getY(), limit = throttle.getRawAxis(1) * -0.5 + 0.5;
+    double speed = -joystick.getY(), limit = throttle.getRawButton(12) ? 0.6 : 0.2; //throttle.getRawAxis(1) * -0.5 + 0.5;
 
     if (m_mode == 0) {
       if (m_initialized) {
@@ -246,6 +261,22 @@ public class Robot extends TimedRobot {
         System.out.print("SRX Position Mode [CAN ID=" + m_id + "] ");
         System.out.print(m_param % 4 > 1 ? "[Motor=REVERSED] " : "[Motor=NORMAL] ");
         System.out.print(m_param % 2 == 1 ? "[Sensor=REVERSED] " : "[Sensor=NORMAL] ");
+      } 
+      System.out.println();
+    } else if (m_mode == 4) {
+      double value = throttle.getRawAxis(1) * -0.5 + 0.5;
+      if (m_initialized) {
+        m_servo.set(value);
+        System.out.println("[Position=" + value + "]");
+      } else {
+        System.out.println("Servo Mode [Port ID=" + m_id + "] [Position=" + value + "]");
+        }
+    } else if (m_mode == 5) {
+      if (m_initialized) {
+        m_spark.set(speed * limit);
+        System.out.print("[Output=" + String.format("%,14.2f", speed * limit * 100.0) + "%] ");
+      } else {
+        System.out.print("Spark MAX Speed Mode [CAN ID=" + m_id + "]");
       }
       System.out.println();
     }
